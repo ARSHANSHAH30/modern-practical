@@ -1,0 +1,191 @@
+Step1: Configure Interfaces
+#ISP (R1)
+enable
+config t
+hostname ISP
+int loopback0
+ip add 192.168.100.1 255.255.255.0
+exit
+int serial1/0
+ip add 192.168.1.5 255.255.255.252
+no shut
+exit
+int serial1/1
+ip add 192.168.1.1 255.255.255.252
+no shut
+exit
+
+#Airoli (R2)
+config t
+hostname airoli
+int loopback0
+ip add 172.16.64.1 255.255.255.0
+exit
+int serial1/0
+ip add 192.168.1.6 255.255.255.252
+no shut
+exit
+int serial1/1
+ip add 172.16.1.1 255.255.255.0
+no shut
+exit
+
+#Thane (R3)
+config t
+hostname thane
+int loopback0
+ip add 172.16.32.1 255.255.255.0
+exit
+int serial1/0
+ip add 192.168.1.2 255.255.255.252
+clock rate 128000
+no shut
+exit
+int serial1/1
+ip add 172.16.1.2 255.255.255.0
+no shut
+exit
+
+Step2: Configure EIGRP
+#Airoli
+router eigrp 1
+network 172.16.0.0
+
+#thane
+router eigrp 1
+network 172.16.0.0
+
+Step3: Configure IBGP
+#Airoli
+router bgp 64512
+neighbor 172.16.32.1 remote-as 64512
+neighbor 172.16.32.1 update-source loopback0
+
+#thane
+router bgp 64512
+neighbor 172.16.64.1 remote-as 64512
+neighbor 172.16.64.1 update-source loopback0
+#Verify
+show ip bgp neighbors
+
+Step4: Configure EBGP
+#ISP
+router bgp 200
+neighbor 192.168.1.6 remote-as 64512
+neighbor 192.168.1.2 remote-as 64512
+network 192.168.100.0
+
+#airoli
+#Discard Route
+ip route 172.16.0.0 255.255.0.0 Null0  
+#BGP
+router bgp 64512		      
+neighbor 192.168.1.5 remote-as 200
+network 172.16.0.0
+
+#thane
+#Discard route
+ip route 172.16.0.0 255.255.0.0 Null0
+#BGP
+router bgp 64512		      
+neighbor 192.168.1.1 remote-as 200
+network 172.16.0.0
+
+Step5: Verify BGP Summary
+#Run on all routers:
+show ip bgp summary
+
+Step6: Verify Reachability On ISP
+clear ip bgp *
+ping 172.16.64.1 source 192.168.100.1
+ping 172.16.1.2 source 192.168.100.1
+ping 172.16.1.1 source 192.168.100.1
+ping 172.16.32.1 source 192.168.100.1
+
+Step7: Configure Next-Hop-Self
+#ISP Advertises WAN Links
+router bgp 200
+network 192.168.1.4 mask 255.255.255.252
+network 192.168.1.0 mask 255.255.255.252
+#verify
+show ip bgp
+
+#Configure Next-Hop-Self 
+#airoli
+router bgp 64512
+neighbor 172.16.32.1 next-hop-self
+#thane
+router bgp 64512
+neighbor 172.16.64.1 next-hop-self
+#Reset BGP on airoli & thane 
+clear ip bgp *
+#verify on thane
+show ip bgp 
+show ip route
+
+Step8: Configure Local Preference
+#airoli
+route-map PRIMARY_T1_IN permit 10
+set local-preference 150
+exit
+router bgp 64512
+neighbor 192.168.1.5 route-map PRIMARY_T1_IN in
+
+#thane
+route-map SECONDARY_T1_IN permit 10
+set local-preference 125
+exit
+router bgp 64512
+neighbor 192.168.1.1 route-map SECONDARY_T1_IN in
+
+#Refresh on airoli and thane
+clear ip bgp * soft
+#Verify on airoli and thane
+show ip bgp
+
+Step9: Configure MED
+#airoli
+route-map PRIMARY_T1_MED_OUT permit 10
+set metric 50
+exit
+router bgp 64512
+neighbor 192.168.1.5 route-map PRIMARY_T1_MED_OUT out
+
+#thane
+route-map SECONDARY_T1_MED_OUT permit 10
+set metric 75
+exit
+router bgp 64512
+neighbor 192.168.1.1 route-map SECONDARY_T1_MED_OUT out
+
+#Refresh on airoli and thane
+clear ip bgp * soft
+#Verify on airoli and thane
+show ip bgp
+
+Step10: Configure Default Route
+#ISP
+router bgp 200
+neighbor 192.168.1.6 default-originate
+neighbor 192.168.1.2 default-originate
+exit
+#Create Test Network
+interface loopback10
+ip address 10.0.0.1 255.0.0.0
+
+#Verify on airoli and thane
+show ip bgp
+
+#Test 
+#from thane
+traceroute 10.0.0.1
+#Failover Test
+#Shutdown Airoli–ISP link on ISP
+interface serial1/0
+shutdown
+#Verify on airoli
+show ip route
+
+
+
+

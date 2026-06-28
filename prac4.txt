@@ -1,0 +1,182 @@
+Step1: Configure Interfaces and Loopbacks
+#R1     
+enable
+config t
+hostname R1
+int Loopback0
+ip address 192.168.1.1 255.255.255.0
+exit
+int Serial1/0
+ip address 10.1.1.1 255.255.255.252
+clock rate 128000
+no shutdown
+exit
+end
+write
+
+#R2
+config t
+hostname R2
+int Serial1/0
+ip address 10.1.1.2 255.255.255.252
+no shutdown
+exit
+int Serial1/1
+ip address 10.2.2.1 255.255.255.252
+clock rate 128000
+no shutdown
+exit
+end
+write
+
+#R3
+config t
+hostname R3
+int Loopback0
+ip address 192.168.3.1 255.255.255.0
+exit
+int Serial1/1
+ip address 10.2.2.2 255.255.255.252
+no shutdown
+exit
+end
+write
+
+Step2: Configure Static Routing
+#R1
+ip route 0.0.0.0 0.0.0.0 10.1.1.2
+#R3
+ip route 0.0.0.0 0.0.0.0 10.2.2.1
+#R2
+config t
+ip route 192.168.1.0 255.255.255.0 10.1.1.1
+ip route 192.168.3.0 255.255.255.0 10.2.2.2
+end
+
+#Connectivity Verification on R1
+ping 10.1.1.2
+ping 10.2.2.1
+ping 10.2.2.2
+ping 192.168.3.1
+
+Step3: Secure Management Access Perform on R1 and R3
+#Minimum Password Length
+config t
+security passwords min-length 10
+
+#Enable Secret
+enable secret class12345
+
+#Console Password
+line console 0
+password ciscoconpass
+login
+exec-timeout 5 0
+logging synchronous 
+exit
+
+#VTY Password
+line vty 0 4
+password ciscovtypass
+login
+exec-timeout 5 0
+exit
+
+#Disable AUX Port
+line aux 0
+no exec
+exit
+
+#Encrypt Passwords
+service password-encryption
+
+#Configure MOTD Banner
+banner motd $Unauthorized access strictly prohibited!$
+
+Step4: Configure Local User Database on R1 and R3
+config t
+username jr-admin secret class12345
+username admin secret class54321
+
+#Console Login Local
+line console 0
+login local 
+exit
+
+#VTY Login Local
+line vty 0 4
+login local
+exit
+
+#Verify Telnet from R1
+telnet 10.2.2.2
+#Login
+Username: admin
+Password: class54321
+
+Step5: Configure AAA with RADIUS Backup on R1 and R3
+#Enable AAA
+config t
+aaa new-model
+
+#RADIUS Server 1
+#radius server RADIUS-1
+#address ipv4 192.168.1.101 
+#key RADIUS-1-pa55w0rd
+#exit
+radius-server host 192.168.1.101 key RADIUS-1-pa55w0rd
+
+#RADIUS Server 2
+#radius server r2
+#address ipv4 192.168.1.102
+#key RADIUS-2-pa55w0rd
+#exit
+radius-server host 192.168.1.102 key RADIUS-2-pa55w0rd
+
+#Create Group
+aaa group server radius RADIUS-GROUP
+#server name RADIUS-1
+server 192.168.1.101
+#server name RADIUS-2
+server 192.168.1.102
+exit
+
+#Login Authentication
+aaa authentication login default group RADIUS-GROUP local
+# OR USE aaa authentication login default group radius local
+
+#Telnet Authentication
+aaa authentication login TELNET-LOGIN group RADIUS-GROUP local-case
+# OR USE aaa authentication login TELNET-LOGIN group RADIUS-GROUP local
+# OR USE aaa authentication login TELNET-LOGIN group radius local
+
+#Apply to VTY
+line vty 0 4
+login authentication TELNET-LOGIN
+exit
+
+Step6: Configure SSH on R1 and R3
+#domain name
+config t
+ip domain-name ccnasecurity.com
+
+#Remove Old Keys
+crypto key zeroize rsa
+
+#Generate RSA Keys
+crypto key generate rsa general-keys modulus 1024
+
+#Enable SSH Version 2
+ip ssh version 2
+#Allow Only SSH
+line vty 0 4
+transport input ssh
+exit
+#Verify
+show ip ssh
+
+#Verify ssh from R1
+ssh -l admin 10.2.2.2
+
+
+

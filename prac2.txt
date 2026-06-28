@@ -1,0 +1,99 @@
+Step1: Configure R1 (sanJose)
+enable 
+config t
+hostname sanjose
+int loopback0
+ip add 10.1.1.1 255.255.255.0
+int serial0/0
+ip add 192.168.1.5 255.255.255.0
+no shut
+end
+
+Step2: Configure R2 (ISP)
+config t
+hostname ISP
+int loopback0
+ip add 10.2.2.1 255.255.255.0
+int serial0/0
+ip add 192.168.1.6 255.255.255.0
+no shut
+int serial0/1
+ip add 172.24.1.6 255.255.255.0
+no shut
+end
+
+Step3: Configure R3 (Customer)
+config t
+hostname customer
+int loopback0
+ip add 10.3.3.1 255.255.255.0
+
+int serial0/1
+ip add 172.24.1.5 255.255.255.0
+no shut
+end
+
+Step4: Configure BGP
+#On SanJose (AS 100)
+config t
+router bgp 100
+neighbor 192.168.1.6 remote-as 300
+network 10.1.1.0 mask 255.255.255.0
+end
+
+#On ISP (AS 300)
+config t
+router bgp 300
+neighbor 192.168.1.5 remote-as 100
+neighbor 172.24.1.5 remote-as 65000
+network 10.2.2.0 mask 255.255.255.0
+end
+
+#On Customer (AS 65000)
+config t
+router bgp 65000
+neighbor 172.24.1.6 remote-as 300
+network 10.3.3.0 mask 255.255.255.0
+end
+
+Step5: Verify BGP Neighbors
+#Run on all routers:
+show ip bgp summary
+
+Step6: Verify Routes on sanjose:
+show ip route
+
+Step7: Verify Connectivity on sanjose
+ping 10.3.3.1 source loopback0
+
+Step8: Check BGP Table on sanjose
+show ip bgp
+
+Step9: Remove Private AS on ISP
+config t
+router bgp 300
+neighbor 192.168.1.5 remove-private-as
+end
+
+Step10: Refresh BGP on ISP
+clear ip bgp *
+
+Step11: Verify Private AS Removal on sanjose
+show ip bgp
+
+Step12: Configure AS_PATH Filter on ISP
+config t
+ip as-path access-list 1 deny ^100$
+ip as-path access-list 1 permit .*
+router bgp 300
+neighbor 172.24.1.5 filter-list 1 out
+end
+
+Step13: Refresh BGP Again on ISP
+clear ip bgp *
+
+Step14: Verify Filter on customer
+show ip route
+
+Step15: Verify on ISP
+show ip bgp regexp ^100$

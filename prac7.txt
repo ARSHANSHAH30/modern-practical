@@ -1,0 +1,82 @@
+| Device | IP Address  | Subnet Mask   | Default Gateway |
+| ------ | ----------- | ------------- | --------------- |
+| PC0    | 192.168.1.5 | 255.255.255.0 | 192.168.1.1     |
+| PC1    | 192.168.2.5 | 255.255.255.0 | 192.168.2.1     |
+| PC2    | 192.168.1.6 | 255.255.255.0 | 192.168.1.1     |
+| PC3    | 192.168.2.6 | 255.255.255.0 | 192.168.2.1     |
+
+###On both the switches
+Step1: Create VLANs on the 2960 Switches
+Switch>enable
+Switch#configure terminal
+Switch(config)#vlan 10
+Switch(config-vlan)#name Sales
+Switch(config)#vlan 20
+Switch(config-vlan)#name Marketing
+Switch(config-vlan)#exit
+
+Step2: Assign Switch Ports to VLANs
+Switch(config)#interface fa0/1
+Switch(config-if)#switchport mode access
+Switch(config-if)#switchport access vlan 10
+Switch(config-if)#interface fa0/2
+Switch(config-if)#switchport mode access
+Switch(config-if)#switchport access vlan 20
+
+Step3: Configure Trunk Port on the Switch
+Switch(config)#interface g0/1
+Switch(config-if)#switchport mode trunk
+Switch(config-if)#end
+Switch#write memory
+
+###on 3650 multilayer
+Step4: Configure VLAN Interfaces on the Multilayer Switch
+Switch#configure terminal
+Switch(config)#vlan 10
+Switch(config-vlan)#name Sales
+Switch(config)#vlan 20
+Switch(config-vlan)#name Marketing
+
+Step5: Configure SVI (Switch Virtual Interface)
+Switch(config)#interface vlan 10
+Switch(config-if)#ip address 192.168.1.1 255.255.255.0
+Switch(config-if)#no shutdown
+Switch(config)#interface vlan 20
+Switch(config-if)#ip address 192.168.2.1 255.255.255.0
+Switch(config-if)#no shutdown
+
+Step6: Configure Trunk Port on Multilayer Switch
+Switch(config)#interface g1/0/1
+Switch(config-if)#switchport mode trunk
+
+###switch 0
+Step7: Configure Trunk on Access Switch 0
+Switch(config)#interface g0/2
+Switch(config-if)#switchport mode trunk
+
+###on multilayer
+Step8: Enable IP Routing on 3650 switch
+
+Step9: Save Configuration
+Switch#write memory
+
+Step10: Verify Routing Table
+show ip route
+
+###
+Step11: Verify Connectivity on pc 0 and pc 1
+ipconfig
+ping 192.168.2.5
+ping 192.168.1.5
+
+
+
+
+
+
+
+
+
+
+
+
